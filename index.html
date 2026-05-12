@@ -119,6 +119,7 @@ tr:hover{background:#334155}
 <!-- 2026-05-11 v14: 병캔 환산 검증·수정 (사용자 지적: 병은 1배, 케그만 2배) — _recomputeFullBeerShare()의 box×_boxCcEstimate(name)/10000 룰 PASS. 병(중)=10000cc/box→1배, 캔355=8520cc/box→0.852배, 케그20L=20000cc/box→2배 정확 적용. 5월 raw 검증: 하이트 btl_can_mancc raw 4504.47 vs 임베드 4321.47 (차 4%), 오비 raw 5218.21 vs 5160.49 (차 1.1%), 롯데 79.63 일치. 차이는 키워드 분류 마진 (호가든/스텔라/버드 등 OBI 일부) — 2배 잘못 곱한 흔적 없음. beer_share.vol_mancc = full_beer_share.total_mancc (케그+병+캔, 모두 만cc 통일). 코드 수정 없음, 검증 결과만 명시. -->
 <!-- 2026-05-11 v15: 병캔 분류 정확화 — 「기타」=「병」 키워드 없는 박스 맥주(테라330, 하이트S1.6L 등)를 「병」으로 재분류. 4월 raw 검증: 하이트 keg=28789·bottle=17680·can=70 (병+캔=17750, 기존 임베드 17506 → 갱신 17750, 차+1.4%), 오비 keg=20183·bottle=21225·can=241 (병+캔=21466, 기존 21104 → 21466, 차+1.7%), 롯데 keg=0·bottle=303·can=16 (병+캔=319, 동일). 분류 룰 강화: 케그/캔/병 키워드 우선, 그 다음 vol≤640ml & ipsu≥20 → 병, 1000~2000ml & ipsu≥6 → 병(PET). 신병/공병/용기/상자/맥주잔 제외. 1~5월 5개월 일괄 갱신. -->
 <!-- 2026-05-11 v16: 병캔 메이커 분류 제품마스터 기준 재집계 — parseRawExcel 키워드 매칭 → 품목코드 → 품목현황[주매입처] lookup. 1) 라이센스 SKU(호가든·버드와이저·스텔라·코로나·카프리·하얼빈)는 모두 오비 분류. 2) 키워드로 못 잡던 SKU(코로나·카프리·하얼빈·아사히 병캔 등)도 마스터로 정확 분류. 3) 12·1월 데이터 대폭 감소(이전 키워드 매칭이 '스타우트'로 모카스타우트오비 등을 하이트에 잘못 포함시켰을 가능성). 4·5월은 거의 동일. -->
+<!-- 2026-05-12 v19: 신규매장 "실 케그(통)" 단위 정정 — 원인: v18에서 r.vol = box*(vol/10000) 환산수량으로 backfill되어 20L 케그가 화면에서 2배(73→146), 30L은 3배, 10L은 등배로 표시. raw cross-check (와르르맨숀 수원역점 73통/한맥, 깐부치킨 고척점 54통/테라+20통/기린15L, 갓생맥주 의정부민락점 50통/테라+6통/삿포로, 제이메이드 4통/카스 등) 정합. 해결: parseRawExcel의 dom/jp_brand_map에 box(실 박스 합) 필드 추가, _hydrateNewStoresFromBrandMap에서 box/keg 동시 backfill, renderNew() 두 곳에서 r.box ?? r.keg ?? (r.vol/2) 폴백, 컬럼 라벨 "생 케그(EA)"→"실 케그(통)". -->
 <!-- 2026-05-12 v18: 4월/5월 신규매장 "생 표시" 누락 보정 — 원인: builder가 4·5월 raw에서 box vs boxes 키 불일치로 dom/jp new_stores 엔트리에 vol·products·products_keg를 누락시킴 (sewang_data_field_name_inconsistency 룰). 해결: _hydrateNewStoresFromBrandMap() 신설 — monthly[].dom_brand_map / jp_brand_map (매장코드별 primary 브랜드 + vol)로 backfill. box/boxes 양방향 폴백 추가. _normalizeAll에서 _dedupeAndPrioritizeNewStores 이후 호출. -->
 <!-- 2026-05-12 v17: 신규매장 탭 3개 버그 수정 — 1) 기타주류 신규매장 카테고리 중복 제거: 카테고리 우선순위(국산생→일본생→기타주류) 적용, 한 매장은 1개 카테고리만. 2) 신규매장 중복 표시 제거: 매장코드 기준 unique 처리(내부 + 카테고리간). 3) 브랜드 컬럼 강건화: products_keg → products → items[].brand 순차 폴백, 기타주류 테이블에 브랜드 컬럼 추가. _dedupeAndPrioritizeNewStores() 신설, _normalizeAll에서 호출. -->
 </head>
@@ -129,6 +130,7 @@ tr:hover{background:#334155}
     <h1>세왕상사 월단위 판매 대시보드</h1>
     <div class="sub">2025년 12월 ~ 2026년 5월 (5월 MTD: 5/2~5/11) | 생맥주 · 맥주 · 소주 종합 분석</div>
     <div style="margin-top:6px;padding:6px 10px;background:#1e3a5f;border-left:3px solid #4ade80;font-size:12px;color:#cbd5e1;border-radius:4px;display:inline-block">
+      ✅ 2026-05-12 v19 — 신규매장 "실 케그(통)" 단위 정정 — 4·5월 raw cross-check 완료, brand_map.box 도입, renderNew 폴백 r.box ▶ r.keg ▶ r.vol/2 순<br>
       ✅ 2026-05-12 v18 — 4월/5월 신규매장 생 표시 fix (vol·products 누락 → brand_map backfill · box/boxes 폴백)<br>
       ✅ 2026-05-12 v17 — 신규매장 탭 3개 버그 수정 (카테고리 중복 제거 · 매장 unique · 브랜드 컬럼)
     </div>
@@ -510,6 +512,9 @@ function _hydrateNewStoresFromBrandMap(d){
           if(!info) return;
           // vol backfill
           if(!hasVol && info.vol!=null) r.vol = info.vol;
+          // [v19] box / keg backfill — brand_map.box = 실 케그(통) 수
+          if(r.box==null && info.box!=null){ r.box = info.box; r.boxes = info.box; }
+          if(r.keg==null && info.box!=null) r.keg = info.box;
           // products backfill (primary 브랜드에 vol 할당; primary 없으면 all 사용)
           if(!hasProds){
             if(info.primary && info.vol!=null){
@@ -1287,10 +1292,11 @@ function renderNew(){
     if(d.new_stores.length>0){
       html+=`<div style="font-size:12px;color:#4ade80;margin:8px 0">완전 신규 매장 (전월 거래 없음)</div>
         <table>
-        <tr><th>#</th><th>매출처</th><th class="num">생 케그(EA)</th><th class="num">생 매출</th><th class="num">전체 매출</th><th>브랜드</th></tr>`;
+        <tr><th>#</th><th>매출처</th><th class="num">실 케그(통)</th><th class="num">생 매출</th><th class="num">전체 매출</th><th>브랜드</th></tr>`;
       d.new_stores.forEach((r,i)=>{
         const prods = _newStoreBrandBadges(r);
-        html+=`<tr><td>${i+1}</td><td>${storeLink(r)} <span class="new-tag">NEW</span></td><td class="num">${(r.keg!=null||r.vol!=null) ? fmtF(r.keg ?? r.vol)+"통" : "-"}</td><td class="num">${fmt(r.amt)}</td><td class="num">${fmt(r.total_amt)}</td><td>${prods}</td></tr>`;
+        const kegVal = (r.box!=null) ? r.box : (r.keg!=null ? r.keg : (r.vol!=null ? r.vol/2 : null));
+        html+=`<tr><td>${i+1}</td><td>${storeLink(r)} <span class="new-tag">NEW</span></td><td class="num">${kegVal!=null ? fmtF(kegVal)+"통" : "-"}</td><td class="num">${fmt(r.amt)}</td><td class="num">${fmt(r.total_amt)}</td><td>${prods}</td></tr>`;
       });
       html+=`</table>`;
     }
@@ -1298,10 +1304,11 @@ function renderNew(){
     if((d.draft_install||[]).length>0){
       html+=`<div style="font-size:12px;color:#60a5fa;margin:12px 0 8px">생맥주 신규 설치 (기존 거래처)</div>
         <table>
-        <tr><th>#</th><th>매출처</th><th class="num">생 케그(EA)</th><th class="num">생 매출</th><th class="num">전체 매출</th><th>브랜드</th></tr>`;
+        <tr><th>#</th><th>매출처</th><th class="num">실 케그(통)</th><th class="num">생 매출</th><th class="num">전체 매출</th><th>브랜드</th></tr>`;
       (d.draft_install||[]).forEach((r,i)=>{
         const prods = _newStoreBrandBadges(r);
-        html+=`<tr><td>${i+1}</td><td>${storeLink(r)} <span class="install-tag">설치</span></td><td class="num">${(r.keg!=null||r.vol!=null) ? fmtF(r.keg ?? r.vol)+"통" : "-"}</td><td class="num">${fmt(r.amt)}</td><td class="num">${fmt(r.total_amt)}</td><td>${prods}</td></tr>`;
+        const kegVal = (r.box!=null) ? r.box : (r.keg!=null ? r.keg : (r.vol!=null ? r.vol/2 : null));
+        html+=`<tr><td>${i+1}</td><td>${storeLink(r)} <span class="install-tag">설치</span></td><td class="num">${kegVal!=null ? fmtF(kegVal)+"통" : "-"}</td><td class="num">${fmt(r.amt)}</td><td class="num">${fmt(r.total_amt)}</td><td>${prods}</td></tr>`;
       });
       html+=`</table>`;
     }
@@ -2469,12 +2476,12 @@ function parseRawExcel(wb, fileName){
     // 국내생: 주력 브랜드 + 모든 브랜드 목록
     if(sd.flags.dom){
       const brands = Object.entries(sd.dom).filter(([,d])=>d.vol>0).map(([br,d])=>({brand:br,vol:d.vol})).sort((a,b)=>b.vol-a.vol);
-      if(brands.length>0) dom_brand_map[code]={name:sd.name, primary:brands[0].brand, all:brands.map(b=>b.brand), vol:rd(brands.reduce((s,b)=>s+b.vol,0)), amt:Math.round(Object.values(sd.dom).reduce((s,d)=>s+d.amt,0)), total_amt:Math.round(sd.total_amt)};
+      if(brands.length>0) dom_brand_map[code]={name:sd.name, primary:brands[0].brand, all:brands.map(b=>b.brand), vol:rd(brands.reduce((s,b)=>s+b.vol,0)), box:Math.round(Object.values(sd.dom).reduce((s,d)=>s+(d.box||0),0)), amt:Math.round(Object.values(sd.dom).reduce((s,d)=>s+d.amt,0)), total_amt:Math.round(sd.total_amt)};
     }
     // 일본생: 주력 브랜드 + 모든 브랜드 목록
     if(sd.flags.jp){
       const brands = Object.entries(sd.jp).filter(([,d])=>d.vol>0).map(([br,d])=>({brand:br,vol:d.vol})).sort((a,b)=>b.vol-a.vol);
-      if(brands.length>0) jp_brand_map[code]={name:sd.name, primary:brands[0].brand, all:brands.map(b=>b.brand), vol:rd(brands.reduce((s,b)=>s+b.vol,0)), amt:Math.round(Object.values(sd.jp).reduce((s,d)=>s+d.amt,0)), total_amt:Math.round(sd.total_amt)};
+      if(brands.length>0) jp_brand_map[code]={name:sd.name, primary:brands[0].brand, all:brands.map(b=>b.brand), vol:rd(brands.reduce((s,b)=>s+b.vol,0)), box:Math.round(Object.values(sd.jp).reduce((s,d)=>s+(d.box||0),0)), amt:Math.round(Object.values(sd.jp).reduce((s,d)=>s+d.amt,0)), total_amt:Math.round(sd.total_amt)};
     }
   }
 
